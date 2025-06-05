@@ -1,0 +1,5 @@
+{
+  "name": "Xiangqi RNG Challenge",
+  "description": "A Xiangqi (Chinese Chess) game where players must move pieces in a randomly determined sequence of three types per turn. Playable by two players on the same machine.",
+  "requestFramePermissions": []
+}
