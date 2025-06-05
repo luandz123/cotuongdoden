@@ -1,18 +1,28 @@
 import { supabase } from './supabaseClient';
 import { GameState } from './types';
 
-// Tạo phòng mới
-export async function createRoom(playerName: string, initialState: GameState) {
+// Tạo phòng mới (có mật khẩu)
+export async function createRoom(playerName: string, initialState: GameState, password: string) {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const { data, error } = await supabase
         .from('rooms')
-        .insert([{ code, player1: playerName, state: initialState }]);
+        .insert([{ code, player1: playerName, state: initialState, password }]);
     if (error) throw error;
     return code;
 }
 
-// Tham gia phòng
-export async function joinRoom(code: string, playerName: string) {
+// Tham gia phòng (kiểm tra mật khẩu)
+export async function joinRoom(code: string, playerName: string, password: string) {
+    // Lấy thông tin phòng để kiểm tra mật khẩu
+    const { data: roomData, error: getError } = await supabase
+        .from('rooms')
+        .select('password, player2')
+        .eq('code', code)
+        .single();
+    if (getError || !roomData) throw new Error('Không tìm thấy phòng!');
+    if (roomData.player2) throw new Error('Phòng đã đủ người!');
+    if (roomData.password !== password) throw new Error('Sai mật khẩu!');
+
     const { data, error } = await supabase
         .from('rooms')
         .update({ player2: playerName })

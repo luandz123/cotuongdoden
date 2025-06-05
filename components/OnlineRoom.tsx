@@ -1,19 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoom, joinRoom, getRoomState, updateRoomState, subscribeRoomState } from '../onlineGameApi';
 import { getInitialBoardState } from '../constants';
-import { PlayerColor, GameState } from '../types';
+import { PlayerColor, GameState, Piece, Coordinates } from '../types';
 import Board from './Board';
 import GameInfoPanel from './GameInfoPanel';
 import {
-    getPossibleMovesForPiece,
-    isKingInCheck,
-    isMoveLegal,
-    getAllLegalMovesForPiece,
     generateRandomPieceOrder,
-    canPlayerMovePieceType,
-    isCheckmate,
-    isStalemate,
 } from '../utils/xiangqiGameLogic';
+
+interface OnlineRoomProps {
+    onBackToMenu?: () => void;
+}
 
 const initialGameState: GameState = {
     boardState: getInitialBoardState(),
@@ -27,10 +24,12 @@ const initialGameState: GameState = {
     isCheckingKing: false,
 };
 
-const OnlineRoom: React.FC = () => {
+const OnlineRoom: React.FC<OnlineRoomProps> = ({ onBackToMenu }) => {
     const [step, setStep] = useState<'input' | 'waiting' | 'playing'>('input');
     const [name, setName] = useState('');
     const [roomCode, setRoomCode] = useState('');
+    const [roomPassword, setRoomPassword] = useState('');
+    const [joinPassword, setJoinPassword] = useState('');
     const [myColor, setMyColor] = useState<PlayerColor | null>(null);
     const [gameState, setGameState] = useState<GameState>(initialGameState);
     const [roomInfo, setRoomInfo] = useState<any>(null);
@@ -41,29 +40,37 @@ const OnlineRoom: React.FC = () => {
     // Tạo phòng mới
     const handleCreateRoom = async () => {
         setError('');
+        if (!roomPassword) {
+            setError('Vui lòng nhập mật khẩu phòng!');
+            return;
+        }
         try {
-            const code = await createRoom(name, initialGameState);
+            const code = await createRoom(name, initialGameState, roomPassword);
             setRoomCode(code);
             setMyColor(PlayerColor.RED);
             setStep('waiting');
-        } catch (e) {
-            setError('Không thể tạo phòng!');
+        } catch (e: any) {
+            setError(e.message || 'Không thể tạo phòng!');
         }
     };
 
     // Vào phòng bằng mã
     const handleJoinRoom = async () => {
         setError('');
+        if (!joinPassword) {
+            setError('Vui lòng nhập mật khẩu phòng!');
+            return;
+        }
         try {
-            const info = await joinRoom(roomCode, name);
+            const info = await joinRoom(roomCode, name, joinPassword);
             if (!info) throw new Error();
             setRoomInfo(info);
             setMyColor(PlayerColor.BLACK);
             setStep('playing');
             const state = await getRoomState(roomCode);
             setGameState(state);
-        } catch (e) {
-            setError('Không tìm thấy phòng hoặc phòng đã đủ người!');
+        } catch (e: any) {
+            setError(e.message || 'Không tìm thấy phòng hoặc phòng đã đủ người!');
         }
     };
 
@@ -104,15 +111,49 @@ const OnlineRoom: React.FC = () => {
         setTimeout(() => setCopyMsg(''), 1500);
     };
 
+    // Thêm hàm handleSquareClick để truyền cho Board
+    const handleSquareClick = (row: number, col: number) => {
+        // Không xử lý ở đây, chỉ cho phép người chơi đến lượt thao tác
+        // Có thể mở rộng logic sau nếu muốn
+    };
+
     // Giao diện nhập tên, tạo/vào phòng
     if (step === 'input') return (
         <div className="flex flex-col items-center justify-center gap-4 p-6">
             <h2 className="text-2xl font-bold mb-2">Chơi Online</h2>
-            <input className="border rounded px-3 py-2 text-lg" placeholder="Nhập tên của bạn" value={name} onChange={e => setName(e.target.value)} />
+            <input className="border rounded px-3 py-2 text-lg" placeholder="Nhập tên của bạn" value={name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
             <div className="flex gap-2 mt-2">
-                <button className="btn btn-primary" disabled={!name} onClick={handleCreateRoom}>Tạo phòng mới</button>
-                <input className="border rounded px-2 py-1 w-28" placeholder="Mã phòng" value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())} />
-                <button className="btn btn-warning" disabled={!name || !roomCode} onClick={handleJoinRoom}>Vào phòng</button>
+                <button className="btn btn-primary" disabled={!name} onClick={() => setStep('create')}>Tạo phòng mới</button>
+                <input className="border rounded px-2 py-1 w-28" placeholder="Mã phòng" value={roomCode} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRoomCode(e.target.value.toUpperCase())} />
+                <button className="btn btn-warning" disabled={!name || !roomCode} onClick={() => setStep('join')}>Vào phòng</button>
+            </div>
+            <button className="btn btn-secondary mt-2" onClick={onBackToMenu}>Quay lại menu</button>
+            {error && <div className="text-red-600 font-semibold mt-2">{error}</div>}
+        </div>
+    );
+    // Giao diện tạo phòng (có mật khẩu)
+    if (step === 'create') return (
+        <div className="flex flex-col items-center justify-center gap-4 p-6">
+            <h2 className="text-xl font-bold mb-2">Tạo phòng mới</h2>
+            <input className="border rounded px-3 py-2 text-lg" placeholder="Tên của bạn" value={name} disabled />
+            <input className="border rounded px-3 py-2 text-lg" placeholder="Mật khẩu phòng" type="password" value={roomPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRoomPassword(e.target.value)} />
+            <div className="flex gap-2 mt-2">
+                <button className="btn btn-primary" disabled={!roomPassword} onClick={handleCreateRoom}>Tạo phòng</button>
+                <button className="btn btn-secondary" onClick={() => setStep('input')}>Quay lại</button>
+            </div>
+            {error && <div className="text-red-600 font-semibold mt-2">{error}</div>}
+        </div>
+    );
+    // Giao diện vào phòng (có mật khẩu)
+    if (step === 'join') return (
+        <div className="flex flex-col items-center justify-center gap-4 p-6">
+            <h2 className="text-xl font-bold mb-2">Vào phòng</h2>
+            <input className="border rounded px-3 py-2 text-lg" placeholder="Tên của bạn" value={name} disabled />
+            <input className="border rounded px-2 py-1 w-28" placeholder="Mã phòng" value={roomCode} disabled />
+            <input className="border rounded px-3 py-2 text-lg" placeholder="Mật khẩu phòng" type="password" value={joinPassword} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setJoinPassword(e.target.value)} />
+            <div className="flex gap-2 mt-2">
+                <button className="btn btn-warning" disabled={!joinPassword} onClick={handleJoinRoom}>Vào phòng</button>
+                <button className="btn btn-secondary" onClick={() => setStep('input')}>Quay lại</button>
             </div>
             {error && <div className="text-red-600 font-semibold mt-2">{error}</div>}
         </div>

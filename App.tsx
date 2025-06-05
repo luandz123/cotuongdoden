@@ -231,7 +231,7 @@ const App: React.FC = () => {
       </div>
     );
   }
-  if (mode === 'online') return <OnlineRoom />;
+  if (mode === 'online') return <OnlineRoom onBackToMenu={() => setMode('menu')} />;
 
   return (
     <div className="xiangqi-main-wrapper">
